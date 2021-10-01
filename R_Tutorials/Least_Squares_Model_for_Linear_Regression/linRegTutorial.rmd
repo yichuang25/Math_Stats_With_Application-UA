@@ -1,0 +1,164 @@
+---
+title: "Linear Least Squares Example"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+```
+
+# Sampling the data
+Consider the following observations $Y_1, Y_2, \dots, Y_n$ following linear model $E(Y) = \beta_0 + \beta_1 x$: 
+
+| $x$ | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+|$y$ | 4.13 |  4.78 | 6.44 |  5.45 | 7.99 |  7.99 |  8.95 | 11.02 | 11.89 | 10.75 |
+
+The following code plots each point $(x,y)$ in the plane.
+```{r Make scatterplot}
+x <- 1:10
+y <-  c(4.13,  4.78,  6.44,  5.45,  7.99,  7.99,  8.95, 11.02, 11.89, 10.75)
+plot(x, y, xlim = c(0,10), ylim = c(0,12), col = "navy", pch = 19, cex = 1.5)
+```
+
+# Estimating the Linear Model
+
+We can calculate the terms $S_{xy}$ and $S_{xx}$ in the formula for $\hat\beta_1$ using the identities:
+\begin{align*}
+  S_{xy} &= \sum_{i=1}^n (x_i - \bar x)(y_i - \bar y) = \sum_{i=1}^n x_i y_i - \frac{1}{n} \sum_{i=1}^n x_i \sum_{i=1}^n y_i \\
+  S_{xx} &= \sum_{i=1}^n (x_i - \bar x)^2 = \sum_{i=1}^n x_i^2 - \frac{1}{n} \left( \sum_{i=1}^n x_i \right)^2 
+\end{align*}
+
+The following code calculates the necessary intermediate values.
+```{r Calculate sums}
+# Number of observations.
+n <- length(x)
+
+# Sums.
+sumx <- sum(x = x)
+sumy <- sum(x = y)
+sumxy <- sum(x = x*y)
+sumxx <- sum(x = x^2)
+```
+
+This yields:
+\[
+  \sum_{i=1}^n x_i = `r sumx` \hspace{0.5in}
+  \sum_{i=1}^n y_i = `r sumy` \hspace{0.5in}
+  \sum_{i=1}^n x_i y_i = `r sumxy` \hspace{0.5in}
+  \sum_{i=1}^n x_i^2 = `r sumxx` 
+\]
+The following code uses these sums to calculate $S_{xx}, S_{xy}$, and $\hat\beta_1$.
+```{r beta1}
+# Calculate Sxy and Sxx
+Sxy <- sumxy - 1/n*sumx*sumy
+Sxx <- sumxx - 1/n*sumx^2
+
+# Calculate hat beta_1
+hbeta1 <- Sxy/Sxx
+```
+This yields
+\[
+  S_{xy} = `r Sxy` \hspace{0.5in} S_{xx} = `r Sxx`
+\]
+and, therefore,
+\[
+  \hat\beta_1 = \frac{S_{xy}}{S_{xx}} = `r hbeta1`.
+\]
+
+On the other hand, we can calculate $\hat\beta_0$ using the identity 
+\[
+  \hat\beta_0 = \bar y - \hat\beta_1 \bar x =  \frac{1}{n} \left( \sum_{i=1}^n y_i - \hat\beta_1 \sum_{i=1}^n x_i \right),
+\]
+which can be evaluated as follows. 
+```{r beta0}
+hbeta0 <- (sumy - hbeta1*sumx)/n
+```
+This yields $\hat\beta_0 = `r hbeta0`$. The fitted line is 
+\[
+  \hat y = `r hbeta0` + (`r hbeta1`)x.
+\]
+
+We can plot the fitted line, as well as the observed data using the **abline** function, which plots a line with given slope and intercept.
+```{r plot fitted line}
+plot(x, y, xlim = c(0,10), ylim = c(0,12), col = "navy", pch = 19, cex = 1.5)
+abline(hbeta0, hbeta1, col = "red", lwd = 2)
+```
+
+## Finding the Variances of the Estimators
+
+We can calculate the variance of the estimators $\hat\beta_0$ and $\hat\beta_1$ using the identities \[
+ V(\hat\beta_0) = \frac{\sigma^2 \sum x_i^2}{n S_{xx}},
+ \hspace{0.5in}
+ V(\hat\beta_1) = \frac{\sigma^2}{S_{xx}}.
+\]
+For this particular example, we have $S_{xx} = `r Sxx`$ and $\sum x_i^2 = `r sumxx`$, which, in turn, yields
+\[
+  V(\hat\beta_0) = \frac{`r sumxx`}{(`r n`)(`r Sxx`)} \sigma^2 = `r sumxx/Sxx/n` \sigma^2,
+  \hspace{0.5in}
+  V(\hat\beta_1) = \frac{\sigma^2}{`r Sxx`}.
+\]
+We can also calculate the covariance between the two estimators $\text{Cov}(\hat\beta_0, \hat\beta_1)$ using the formula
+$$
+  \text{Cov}(\hat\beta_0, \hat\beta_1) = -\frac{\bar x \sigma^2}{S_{xx}} = - \frac{\sum x}{n S_{xx}} \sigma^2.
+$$
+We can calculate the coefficient of $\sigma^2$ in this expression using the following code.
+```{r cov}
+covFactor <- -(sumx)/(n*Sxx)
+```
+This gives covariance $\text{Cov}(\hat\beta_0, \hat\beta_1) = `r covFactor`\sigma^2$.
+
+# Estimating the Population Variance
+
+In order to estimate $\sigma^2$, we need to calculate the sum of squared errors (SSE), which can be accomplished using the formula
+$$
+SSE = \sum^n_{i=1}(y_i - \hat y_i)^2 
+  = \sum_{i=1}^n (y_i - \bar y)^2
+  - \hat \beta_1 \sum_{i=1}^n (x_i - \bar x)(y_i - \bar y)
+  = S_{yy} - \hat \beta_1 S_{xy}.
+$$
+To evaluate this formula, we can need to calculate 
+$$
+  S_{yy} = \sum_{i=1}^n (y_i - \bar y)^2 = \sum_{i=1}^n y_i^2 - n \bar y^2
+  = \sum_{i=1}^n y_i^2 - \frac{1}{n}\left(\sum_{i=1}^n y_i \right)^2,
+$$
+which can be accomplished using the following code.
+```{r calc Syy}
+# Calculate sum of squared ys.
+sumyy <- sum(y^2)
+
+# Calculate Syy
+Syy = sumyy - sumy^2/n
+```
+Using the calculated values, we obtain 
+$$
+  SSE = S_{yy} - \hat\beta_1 S_{xy}
+    = `r Syy` - (`r hbeta1`)(`r Sxy`)
+    = `r Syy - hbeta1*Sxy`,
+$$
+which could also be evaluated using the code.
+```{r SSE}
+SSE <- Syy - hbeta1*Sxy
+```
+The estimate of the variance $\sigma^2$ given by $SSE/(n-2)$ can be evaluated using the following code.
+```{r S^2}
+Ssquared <- SSE/(n-2)
+```
+This gives $s^2 = `r Ssquared`.$
+
+# Using the LM function
+
+We can also calculate the linear model using the R function **lm**. The following code saves the output of the linear regression function to the list **mod**.
+```{r use lm}
+mod <- lm(y~x)
+```
+We can view the estimated coefficients of the linear model, i.e., $\hat\beta_0$ and $\hat\beta_1$, calculated by **lm** using the following code:
+```{r view model}
+mod$coefficients
+```
+
+Note that the intercept and slope terms calculated by **lm** agree with the values of $\hat\beta_0$ and $\hat\beta_1$, respectively, calculated above.
