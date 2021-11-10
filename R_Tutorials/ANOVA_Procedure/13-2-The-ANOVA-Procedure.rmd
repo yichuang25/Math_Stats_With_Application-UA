@@ -1,0 +1,113 @@
+---
+title: "The ANOVA Procedure"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+The following table contains observations $Y_{11}, Y_{12}, \dots, Y_{18}$ and $Y_{21}, Y_{22}, \dots, Y_{28}$ drawn from two normal distributions $N(\mu_1,\sigma^2)$ and $N(\mu_2, \sigma^2)$, respectively.
+
+| $j$ | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| $y_{1j}$  | -0.8 | 0.4 | 2.7 | -0.0 | 0.9 | -2.3 | 1.7 | -0.5 | 
+| $y_{2j}$  | 3.7 | 0.6 | 0.3 | 0.4 | -0.7 | 1.1 | 2.1 | 0.2 | 
+
+
+# Using the ANOVA Procedure
+
+We can test the null hypothesis $H_0: \mu_1 = \mu_2$ against the alternative hypothesis $H_a: \mu_1 \neq \mu_2$ using the ANOVA procedure. Specifically, we can test $H_0$ against $H_a$ using the test statistic 
+$$
+  F = \frac{MST}{MSE},
+$$
+which has $F$ distribution with $\nu_1 = 1$ numerator degrees of freedom and $\nu_2 = n - 2 = 14$ denominator degrees of freedom; we obtain an $\alpha$-level test by using the rejection region $F = f_{\alpha, \nu_1, \nu_2}$.
+
+We calculate the mean sum of squares for treatments using the formula
+$$
+  MST = \frac{n_1}{2} (\bar{y}_1 - \bar{y}_2 )^2,
+$$
+where $n_1 = n_2 = 8$, and the following code.
+```{r calcMST}
+# Define data vectors.
+y1 <- c(-0.8 , 0.4 , 2.7 , -0.0 , 0.9 , -2.3 , 1.7 , -0.5)
+y2 <- c(3.7 , 0.6 , 0.3 , 0.4 , -0.7 , 1.1 , 2.1 , 0.2 )
+
+# Calculate within-group means
+y1bar <- mean(y1)
+y2bar <- mean(y2)
+
+# Calculate the MST.
+n1 <- length(y1)
+MST <- (n1/2)*(y1bar - y2bar)^2
+```
+This yields $\bar{y}_1 = `r y1bar`$, $\bar{y}_2 = `r y2bar`$, and $MST = `r MST`$.
+
+On the other hand, we calculate the sum of squares for error using the following identity
+$$
+  MSE = \frac{SSE}{2n_1 - 2}, \;\; \text{where }
+  SSE = \sum_{i=1}^2 \sum_{j=1}^{n_i} (y_{ij} - \bar{y}_i)^2,
+$$
+and the following code.
+```{r calcMSE}
+# Calculate SS for each group of samples.
+SSE1 <- sum((y1 - y1bar)^2)
+SSE2 <- sum((y2 - y2bar)^2)
+
+# Calculate SSE.
+SSE <- SSE1 + SSE2
+
+# Calculate MSE.
+MSE <- SSE/(2*n1 - 2)
+```
+This gives 
+\begin{align*}
+  \sum_{j=1}^{n_1} (y_{1j} - \bar{y}_1)^2 &= `r SSE1` \\
+  \sum_{j=1}^{n_1} (y_{2j} - \bar{y}_2)^2 &= `r SSE2` \\
+  SSE &= `r SSE` \\
+  MSE &= `r MSE`
+\end{align*}
+
+Putting everything together, we calculate the observed value of $F$.
+```{r calcF}
+fval <- MST/MSE
+```
+This gives $f = `r fval`$.
+
+Testing with $\alpha = 0.05$, we use the rejection region
+$$
+  f > f_{\alpha} = `r qf(p = 0.05, df1 = 1, df2 = 14, lower.tail = FALSE)`.
+$$
+Since the observed value of $f$ is not in the rejection region, we cannot reject $H_0$.
+
+We can calculate the attained level of significance using the following code.
+```{r calc-p}
+pval <- pf(q = fval, df1 = 1, df2 = 14, lower.tail = FALSE)
+```
+This gives $p$-value $p = `r pval`$. Since the attained significance is greater than $\alpha = 0.05$, we do not have sufficient evidence to reject $H_0$.
+
+# Using the ``aov`` function
+
+We can also perform this test using the ``aov`` function. To do so, we group our observations as a single vector and create a label vector using the following code.
+```{r data-for-aov}
+y <- c(y1, y2)
+pop <- as.factor(cbind(rep("1", times = 8), rep("2", times = 8)))
+```
+We next use the command ``aov(formula = y ~ pop)`` to perform the ANOVA procedure.
+```{r aov}
+aov.mod <- aov(formula = y ~ pop)
+```
+We can inspect the results of the ANOVA procedure using the ``summary`` function.
+```{r aov-summary}
+summary(aov.mod)
+```
+Note that the observed $F$ value and attained significance given by this summary table agree with those calculated earlier.
+
+# Using the ``t.test`` function
+
+Recall that the one-way $F$-test is equivalent to performing a $t$-test for $H_0$ and $H_a$.
+We can perform the test using the following code.
+```{r t-test}
+t.test(y1, y2)
+```
+It is important to note that the attained significance, $p = 0.3539$, and conclusion is identical to that obtained using the one-sided $F$-test.
+

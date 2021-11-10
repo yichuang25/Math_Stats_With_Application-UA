@@ -1,0 +1,185 @@
+---
+title: "ANOVA for One-Way Layouts in R"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+The following data are drawn from four normal populations.
+```{r data, echo=FALSE}
+y1 <- c(0.9,  0.4,  0.7,  0.2,  0.3,  0.0,  0.6, -1.4)
+y2 <- c(-1.1,  0.7, -0.5,  2.0,  2.3, -0.7,  1.6,  1.0)
+y3 <- c(2.3,  0.5, -0.2,  0.5,  1.9,  1.9,  2.4,  2.0)
+y4 <- c( -1.0, -0.3, -0.7,  0.6,  3.3,  3.0,  2.5,  0.0)
+
+dta <- data.frame(y1, y2, y3, y4)
+
+knitr::kable(dta, 
+             col.names = c("Pop 1", "Pop 2", "Pop 3", "Pop 4"),
+             align=c(rep('c',times=4)))
+```
+We can store the given data as a data frame using the following code. Note that we can do so because each sample has the same size ($n_i = 8$).
+```{r store-as-frame}
+y1 <- c(0.9,  0.4,  0.7,  0.2,  0.3,  0.0,  0.6, -1.4)
+y2 <- c(-1.1,  0.7, -0.5,  2.0,  2.3, -0.7,  1.6,  1.0)
+y3 <- c(2.3,  0.5, -0.2,  0.5,  1.9,  1.9,  2.4,  2.0)
+y4 <- c( -1.0, -0.3, -0.7,  0.6,  3.3,  3.0,  2.5,  0.0)
+
+dta <- data.frame(y1, y2, y3, y4)
+colnames(dta) <- c("1", "2", "3", "4")
+```
+
+The following code calculates the total and averages for each population.
+```{r tots-means}
+Ysums <- colSums(dta)
+Ymeans <- colMeans(dta)
+```
+
+This gives 
+\begin{align*}
+  y_{1\bullet} &= `r Ysums[1]`, &&& y_{2\bullet} &= `r Ysums[2]`,
+  &&& y_{3\bullet} &= `r Ysums[3]`, &&& y_{4\bullet} &= `r Ysums[4]`, \\
+  \bar y_{1\bullet} &= `r Ymeans[1]`, &&& \bar y_{2\bullet} &= `r Ymeans[2]`,
+  &&& \bar y_{3\bullet} &= `r Ymeans[3]`, &&& \bar y_{4\bullet} &= `r Ymeans[4]`
+\end{align*}
+
+
+To test the null hypothesis $H_0: \mu_1 = \mu_2 = \mu_3 = \mu_4$, we need to calculate the MST and MSE for this data. We start by calculating the correction for the mean CM using the following code.
+```{r cm}
+n <- 32 # Total number of samples.
+cmval <- sum(dta)^2/n
+```
+This gives 
+\[
+  \text{CM} = \frac{1}{n}\left( \sum_{i=1}^k \sum_{j=1}^{n_i} y_{ij} \right)^2
+    = \frac{(`r sum(dta)`)^2}{`r n`}
+    = `r cmval`.
+\]
+
+We can calculate SST and MST using the formulas
+\[
+  \text{SST} = \sum_{i=1}^k \frac{y_{i\bullet}^2}{n_i} - \text{CM},
+  \hspace{0.25in} \text{MST} = \frac{\text{SST}}{k-1},
+\]
+and the following code.
+```{r mst}
+k <- 4 # number of populations.
+sst <- sum(Ysums^2/8) - cmval
+mst <- sst/(k-1)
+```
+This gives 
+$$
+  \text{SST} = `r sst`, \hspace{0.5in}
+  \text{MST} = `r mst`.
+$$
+
+
+
+
+On the other hand, we calculate MSE using the following formulas
+$$
+  \text{TSS} = \sum_{i=1}^k \sum_{j=1}^{n_i} y_{ij}^2 - CM,
+  \hspace{0.25in}
+  \text{SSE} = \text{TSS} - \text{SST},
+  \hspace{0.25in}
+  \text{MSE} = \frac{\text{SSE}}{n-k}
+$$
+and the following code.
+```{r mse}
+tss <- sum(dta^2) - cmval
+sse <- tss - sst
+mse <- sse/(n - 4)
+```
+This yields
+$$
+ \text{TSS} = `r tss`,
+  \hspace{0.25in}
+  \text{SSE} = `r sse`,
+  \hspace{0.25in}
+  \text{MSE} = `r mse`.
+$$
+
+
+Finally, we calculate the observed value of the test statistic $F = \text{MST}/\text{MSE}$ using the following code.
+```{r fval}
+fval <- mst/mse
+```
+This gives $f = `r fval`$, with $\nu_1 = 3$ and $\nu_2 = 28$ degrees of freedom.
+The rejection region for a $\alpha = 0.05$ level test is
+$$
+  f > f_{\alpha} = 
+  `r qf(p = 0.05, df1 = 3, df2 = 28, lower.tail = FALSE)`.
+$$
+Since the observed value of $F$ is not in the rejection region, we cannot reject $H_0$.
+
+ 
+# Using the aov function.
+
+We can also calculate the ANOVA table using the ``aov`` function in R.
+To do, we first must store our data as a two-dimensional array with one column indicating population member and the second indicating the observed response (as opposed to four columns giving the responses for each sample).
+
+We can do so using the ``melt`` function from the ``reshape2`` package in R. After installing ``reshape2`` using the command ``install.packages(reshape2)``, we can perform the necessary transformation of the data using the following code.
+```{r meltdata}
+library(reshape2)
+meltedY <- melt(dta)
+colnames(meltedY) <- c("Population", "Response")
+```
+```{r displayMeltedY, echo = FALSE}
+knitr::kable(meltedY,align=c(rep('c',times=2)))
+```
+Finally, we can form the ANOVA table for this data using the ``aov`` and ``summary`` functions in R.
+```{r formANOVATable}
+resAOV <- aov(Response ~ Population, data = meltedY)
+summary(resAOV)
+```
+
+Note that the values found in the ANOVA table given by the ``aov`` agree with those calculated above.
+
+# Calculating Confidence Intervals
+
+We can make inferences about the individual populations using their sample means and the pooled estimator of $\sigma^2$ given by the MSE.
+
+For example, suppose we want to test the hypothesis $H_0: \mu_3 = 0$ against the alternative hypothesis $H_a: \mu_3 \neq 0$.
+We can calculate a two-sided 95% confidence interval for $\mu_3$ from this data using the formula
+$$
+  \bar{Y}_{3\bullet} \pm t_{0.025} \sqrt{ \frac{-\text{MSE}}{n_3}},
+$$
+where $t_{0.025}$ is calculated using $n-k$ degrees of freedom.
+
+We calculate the confidence interval using the following code.
+```{r CI}
+tval <- qt(p = 0.025, df = n - k, lower.tail = FALSE)
+s <- sqrt(mse)
+rad <- tval*s/sqrt(8)
+lb <- Ymeans[3] - rad
+ub <- Ymeans[3] + rad
+```
+This gives the confidence interval
+$$
+  `r lb ` < \mu_3 < `r ub`.
+$$
+Since this confidence interval *does not contain 0* we can reject $H_0$.
+
+As a second example, suppose that we want to test the null hypothesis $H_0: \mu_2 = \mu_4$ against $H_a: \mu_2 \neq \mu_4$.
+We can calculate a 95\% confidence interval for the difference $\mu_2 - \mu_4$ using the formula
+$$
+  \bar{Y}_{2\bullet} - \bar{Y}_{4\bullet} \pm t_{0.025} \sqrt{\text{MSE}}\sqrt{\frac{1}{n_2} + \frac{1}{n_4}}
+$$
+and the following code.
+```{r diffCI}
+s <- sqrt(mse)
+rad <- tval*s*sqrt(1/8 + 1/8)
+lb <- Ymeans[2] - Ymeans[4] - rad
+ub <- Ymeans[2] - Ymeans[4] + rad
+```
+This gives the confidence interval
+$$
+  `r lb ` < \mu_2 - \mu_4 < `r ub`.
+$$
+This implies that we cannot reject $H_0$ based on this data since $0$ belongs to this confidence interval.

@@ -1,0 +1,143 @@
+---
+title: "ANOVA for Randomized Block Designs in R"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+
+
+Consider the following data corresponding to a randomized block design with $k = 4$ treatments and $b = 5$ blocks.
+
+```{r data, echo = FALSE}
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+rownames(y) <- c("Treatment 1", "Treatment 2", "Treatment 3", "Treatment 4")
+colnames(y) <- c("Block 1", "Block 2", "Block 3", "Block 4", "Block 5")
+knitr::kable(y, align=c(rep('c',times=5)))
+```
+
+In order to create the ANOVA table for this experiment, we first calculate the observed values of the sums of squares using the following code.
+
+We start by creating a matrix to store the observations and then calculate CM and Total SS.
+```{r SS}
+# Create matrix storing observations.
+b <- 5
+k <- 4
+n <- b*k
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+# Calculate CM and total sum of squares.
+cm <- sum(y)^2/n
+tss <- sum(y^2) - cm
+```
+
+This gives 
+\begin{align*}
+  \text{CM} &= \frac{(\text{total})^2}{n} = \frac{`r sum(y)^2`}{`r n`} = `r cm` \\
+  \text{Total SS} &= \sum_{i=1}^4 \sum_{j=1}^5 (y_{ij} - \bar{y})^2
+    = \sum_{i=1}^4 \sum_{j=1}^5 y_{ij}^2 - \text{CM} =
+    `r sum(y^2)` - `r cm` = `r tss`.
+\end{align*}
+
+Next, we can calculate SSB and SST by noting that $y_{\bullet j}$ and $y_{i \bullet}$ are equal to the $j$th column sum and $i$th row sum of the matrix of observations $y$; the functions ``colSums`` and ``rowSums`` are be used to calculate vectors of column and row sums, respectively for given matrix. We use these functions and the following code to calculate SSB and SST.
+```{r SSB-SST}
+# Calculate vectors of row and col sums.
+ydotj <- colSums(y)
+yidot <- rowSums(y)
+
+# Calculate SSB, SST, SSE.
+ssb <- sum(ydotj^2)/k - cm
+sst <- sum(yidot^2)/b - cm
+sse <- tss - ssb - sst
+```
+This yields 
+\begin{align*}
+  \text{SSB} &= \sum_{j=1}^5 \frac{y_{\bullet j}^2}{k} - \text{CM} = 
+    `r sum(ydotj^2)/k` - `r cm` = `r ssb` \\
+  \text{SST} &= \sum_{i=1}^4 \frac{y_{i \bullet}^2}{b} - \text{CM} = 
+    `r sum(yidot^2)/b` - `r cm` = `r sst` \\
+  \text{SSE} & = \text{Total SS} - \text{SSB} - \text{SST} 
+    = `r tss` - `r ssb` - `r sst` = `r sse`.
+\end{align*}
+
+# Testing for differences in response to treatments.
+
+Suppose that we want to test a hypothesis of no difference in the mean response for treatments.
+We do so using the $F$-distributed statistic
+$$
+  F = \frac{\text{MST}}{\text{MSE}}
+$$
+which can be calculated using the following code.
+```{r calc-F}
+mst <- sst/(k-1)
+mse <- sse/(n - b - k + 1)
+fval <- mst/mse
+```
+This gives 
+\[
+  F = \frac{`r mst`}{`r mse`} = `r fval`.
+\]
+For a $\alpha$-level test we use the critical value of the $F$-statistic for $\nu_1 = k-1 = `r k - 1`$ and $\nu_2 = n-b-k+1  =`r n-b-k+1`$ df.
+For $\alpha = 0.05$ we have 
+$$
+  f_{0.05} = `r round(qf(p = 0.05, df1 = k-1, df2 = n-b-k+1, lower.tail = FALSE), digits = 4)`.
+$$
+Since the observed value of $F$ is in the rejection region, we can infer that there is a significant difference between mean response for some of the treatments.
+
+# Testing for differences between blocks.
+
+Similarly, we can test the hypothesis $H_0: \beta_i = 0$ for all $i = 1,2, \dots, 5$ using the test statistic 
+$$
+  F = \frac{\text{MSB}}{\text{MSE}},
+$$
+which we calculate using the following code.
+```{r f-blocks}
+msb <- ssb/(b-1)
+fval <- msb/mse
+```
+This gives 
+$$
+  F = \frac{`r msb`}{`r mse`} = `r fval`.
+$$
+The statistic $F$ has $f$-distribution with $b-1 = `r b -1`$ numerator degrees of freedom, $n - b- k +1 =`r n-b-k+1`$ denominator degrees of freedom. The critical value for an $\alpha$-level test, with $\alpha = 0.05$, is given by 
+$$
+  f_{0.05} = `r round(qf(p = 0.05, df1 = b-1, df2 = n-b-k+1, lower.tail = FALSE), digits = 4)`.
+$$
+Therefore, we cannot reject $H_0$ since the observed value of $F$ is outside the rejection region.
+
+
+# Using the ``aov`` function
+
+We can also use the ``aov`` function to calculate the ANOVA table and test whether there is a significant difference in mean response to treatments or across blocks.
+
+We first create vectors of labels indicating which treatment and block each observation corresponds to. We do so using the ``gl`` function in R.
+```{r create-treatment-labels}
+f <- c("Treatment 1", "Treatment 2", "Treatment 3", "Treatment 4")
+ts <- gl(n = k, k = 1, length = n, labels = factor(f))
+```
+The argument ``n = k`` indicates to create a vector with ``k`` labels (contained in the vector ``f``), while the argument ``k = 1`` indicates to list each label once in sequence.
+This yields a $k$-dimensional factor vector with the sequence *Treatment 1*, *Treatment 2*, *Treatment 3*, *Treatment 4* repeated $b = 5$ times indicating the treatment applied to each observation $y_{ij}$ when the matrix $y$ is treated as a $n$-dimensional vector.
+
+Similarly, the following code generates the label vector assigning blocks to each observation.
+```{r create-block-labels}
+bs <- gl(n = b, k = k, length = n)
+```
+The argument ``k = k`` indicates to repeat each factor level (here, $1,2,\dots, b$ by default) a total of $k$ times while creating the vector ``bs``.
+This yields vector ``bs`` consisting of $k = 4$ copies of $1$, followed by $k$ copies of $2$, etc. The first $k$ entries correspond to the observations in the first column of $y$, which all belong to block $1$, the second $k$ correspond to the second column of $y$ (block $2$), and so we have a vector associating blocks with each observation.
+
+After creating these label vectors we use the ``aov`` function with model ``y ~ ts + bs`` to create the desired ANOVA table.
+```{r anova-tab}
+summary(aov(as.vector(y) ~ ts + bs))
+```
+
+

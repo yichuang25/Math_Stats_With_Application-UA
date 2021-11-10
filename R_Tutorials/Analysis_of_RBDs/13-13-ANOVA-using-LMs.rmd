@@ -1,0 +1,178 @@
+---
+title: "ANOVA using Linear Models in R"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+Consider the following data corresponding to a randomized block design with $k = 4$ treatments and $b = 5$ blocks.
+
+```{r data, echo = FALSE}
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+rownames(y) <- c("Treatment 1", "Treatment 2", "Treatment 3", "Treatment 4")
+colnames(y) <- c("Block 1", "Block 2", "Block 3", "Block 4", "Block 5")
+knitr::kable(y, align=c(rep('c',times=5)))
+```
+# Modeling as a Linear Model
+
+We can use the model
+$$
+  Y_{ij} = \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \beta_3 x_3 + \beta_4 x_4 + \beta_5 x_5 + \beta_6 x_6 + \beta_7 x_7 + \epsilon_{ij},
+$$
+where 
+$$
+  x_i = \begin{cases} 1, & \text{if the observations is from block } i, \\ 0, & \text{otherwise}
+  \end{cases}
+$$
+for $i = 1,2,3,4$, and 
+$$
+  x_{i+4} = \begin{cases}
+    1, & \text{if treatment $i$ is applied to the observation,} \\
+    0, & \text{otherwise}
+  \end{cases}
+$$
+for $i = 1,2,3$. 
+Here, we assume $\epsilon_{ij} \sim N(0, \sigma^2)$.
+
+We can construct the data matrices for the linear model using the following code.
+```{r}
+# Store observations as vector.
+y <- c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7)
+
+# Make first indicator variable by setting first column of 
+# four by matrix equal to 1.
+x1 <- matrix(0, nrow = 4, ncol = 5)
+x1[,1] <- 1
+
+# Remaining indicator variables for blocks.
+x2 <- matrix(0, nrow = 4, ncol = 5)
+x2[,2] <- 1
+x3 <- matrix(0, nrow = 4, ncol = 5)
+x3[,3] <- 1
+x4 <- matrix(0, nrow = 4, ncol = 5)
+x4[,4] <- 1
+
+# Make indicator variable for first treatment by setting first row of zero matrix
+# equal to 1.
+x5 <- matrix(0, nrow = 4, ncol = 5)
+x5[1,] <- 1
+
+# Repeat for remaining indicator variables for blocks.
+x6 <- matrix(0, nrow = 4, ncol = 5)
+x6[2,] <- 1
+x7 <- matrix(0, nrow = 4, ncol = 5)
+x7[3,] <- 1
+
+# Store all indicator variables as matrix.
+X <- cbind(rep(x = 1, times = 20), # beta0 column
+                as.vector(x1),
+                as.vector(x2),
+                as.vector(x3),
+                as.vector(x4),
+                as.vector(x5),
+                as.vector(x6),
+                as.vector(x7))
+
+# Make X'X and X'Y.
+XX <- t(X) %*% X
+XY <- t(X) %*% y
+```
+
+This yields
+```{r printMatrix, echo=FALSE}
+print_mat <- function(mat) {
+  n <- nrow(mat)
+  c('\\begin{bmatrix}',
+    paste0(sapply(seq_len(n - 1),
+                  function(i) paste0(mat[i, ], collapse = ' & ')),
+           ' \\\\'),
+    paste0(mat[n, ], collapse = ' & '),
+    '\\end{bmatrix}')
+} 
+```
+```{r displayMatrices, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\mathbf{Y} =", print_mat(as.matrix(y)),
+             "\\hspace{0.25in}\\mathbf{X} =", print_mat(as.matrix(X)),
+             "\\hspace{0.25in}\\mathbf{X' X} =", 
+             print_mat(as.matrix(XX)),  
+             "\\hspace{0.25in} \\mathbf{X' Y}=",
+             print_mat(as.matrix(round(XY, digits = 2))),
+             "$$"))
+```
+
+We calculate the least squares estimator
+$$
+  \boldsymbol{\hat\beta} = (\mathbf{X'} \mathbf{X})^{-1} \mathbf{X'Y}
+$$
+using the following code.
+```{r calc-beta}
+hBeta <- solve(XX, XY)
+```
+This gives 
+```{r matSolveSol, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\boldsymbol{\\hat\\beta}=",
+             print_mat(as.matrix(round(hBeta, digits = 3))),
+             "$$"))
+```
+with sum of squared errors given by
+$$
+  \text{SSE}_{C} = \mathbf{Y'Y} - \boldsymbol{\hat\beta}'\mathbf{X'Y}
+    = `r t(y) %*% y` - `r t(hBeta) %*% t(X) %*% y`
+    = `r t(y) %*% y -  t(hBeta) %*% t(X) %*% y`.
+$$
+
+# Testing Significance of Blocking
+
+Suppose that we want to test if there is a significant difference between block means.
+The appropriate test uses null hypothesis is $H_0: \beta_1 = \beta_2 = \beta_3 = \beta_4 = 0$, and reduced model
+\[
+  Y = \beta_0 + \beta_5 x_5 + \beta_6 x_6 + \beta_7 x_7 + \epsilon.
+\]
+The corresponding $\mathbf{X}$ matrix consists of the first, sixth, seventh, and eighth columns of $\mathbf{X}$, which can be formed using the following code.
+```{r reduced-x}
+Xr <- X[, c(1, 6:8)]
+```
+We can calculate the reduced model using the following code.
+```{r reduced-beta}
+hBetaR <- solve(t(Xr) %*% Xr, t(Xr) %*% y)
+```
+This gives 
+```{r matSolveSolR, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\boldsymbol{\\hat\\beta_R}=",
+             print_mat(as.matrix(round(hBetaR, digits = 3))),
+             "$$"))
+```
+with sum of squared errors given by
+$$
+  \text{SSE}_{R} = \mathbf{Y'Y} - \boldsymbol{\hat\beta_R}'\mathbf{X_R'Y}
+    = `r t(y) %*% y` - `r t(hBetaR) %*% t(Xr) %*% y`
+    = `r t(y) %*% y -  t(hBetaR) %*% t(Xr) %*% y`.
+$$
+To test $H_0$ we use the $F$ statistic 
+$$
+  F = \frac{(\text{SSE}_R - \text{SSE}_C)/(k - g)}{\text{SSE}_C/(n - (k+1))},
+$$
+where $k = 7$, $g = 3$, and $n$, which we calculate using the following code.
+```{r calcF}
+sseR <- t(y) %*% y -  t(hBetaR) %*% t(Xr) %*% y
+sseC <- t(y) %*% y -  t(hBeta) %*% t(X) %*% y
+
+fval <- (sseR - sseC)/(7 -3)/(sseC/(20 - 8))
+```
+This yields
+$$
+  F = `r fval`.
+$$
+Since the critical value of $F$ with $\nu_1 = 4$ and $\nu_2 = 12$ for an $\alpha = 0.05$ level test is
+$f_{0.05, \nu_1, \nu_2} = `r round(qf(p = 0.05, df1 = 4, df2 = 12, lower.tail = FALSE), digits = 4)`$,
+we cannot reject $H_0$. This implies that there is little evidence that blocking has a significant effect.

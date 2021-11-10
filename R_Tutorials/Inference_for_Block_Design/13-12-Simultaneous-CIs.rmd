@@ -1,0 +1,131 @@
+---
+title: "Simultaneous Confidence Intervals in R"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+Consider the following data corresponding to a randomized block design with $k = 4$ treatments and $b = 5$ blocks.
+
+```{r data, echo = FALSE}
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+rownames(y) <- c("Treatment 1", "Treatment 2", "Treatment 3", "Treatment 4")
+colnames(y) <- c("Block 1", "Block 2", "Block 3", "Block 4", "Block 5")
+knitr::kable(y, align=c(rep('c',times=5)))
+```
+
+We calculated the following the sums of squares in an earlier example:
+```{r SS, echo = FALSE}
+# Create matrix storing observations.
+b <- 5
+k <- 4
+n <- b*k
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+# Calculate CM and total sum of squares.
+cm <- sum(y)^2/n
+tss <- sum(y^2) - cm
+
+# Calculate vectors of row and col sums.
+ydotj <- colSums(y)
+yidot <- rowSums(y)
+
+# Calculate SSB, SST, SSE.
+ssb <- sum(ydotj^2)/k - cm
+sst <- sum(yidot^2)/b - cm
+sse <- tss - ssb - sst
+
+# MSE/MST/MSB
+msb <- ssb/(b-1)
+mst <- sst/(k-1)
+mse <- sse/(n - b - k + 1)
+s <- sqrt(mse)
+```
+
+
+A $100(1-\alpha)\%$ confidence interval for the difference between $\tau_i$ and $\tau_j$ is given by 
+$$
+  \bar{Y}_{i\bullet} - \bar{Y}_{j\bullet} \pm t_{\alpha/2} S \sqrt{\frac{2}{b}},
+$$
+$S^2 = \text{MSE}$ gives an unbiased estimate of $\sigma^2$ with $n - b - k + 1 = 12$ degrees of freedom.
+
+Note that we want to compare $\binom{4}{2} = 6$ pairs of the form $\tau_i - \tau_j$.
+If we want a collection of confidence intervals for $\tau_i - \tau_j$ for each $(i,j)$ pair with $100(1-\alpha)\%$ *simultaneous confidence coefficient* then it suffices to find a two-sided $100(1-\alpha/6)\%$ confidence interval for $\tau_i - \tau_j$ for each pair $(i,j)$.
+
+Recall that we calculated the observed value of $S = \sqrt{\text{MSE}}$ in an earlier example:
+$$
+  S = \sqrt{\text{MSE}} = `r sqrt(mse)`.
+$$
+The following code calculates the required value of $t_{\alpha/12}$.
+```{r t-S-calc}
+b <- 5
+k <- 4
+alpha <- 0.05
+tval <- qt(p = alpha/12, df = (b-1)*(k-1), lower.tail = FALSE)
+```
+This gives
+$$
+  t_{\alpha/12} = t_{`r round(alpha/12, digits = 5)`} = `r tval`.
+$$
+Putting everything together, we obtain the set of confidence intervals with $0.95$ simultaneous confidence coefficient using the formula
+$$
+  \bar{Y}_{i\bullet} - \bar{Y}_{j\bullet} \pm t_{\alpha/12} S \sqrt{\frac{2}{b}}
+    = \bar{Y}_{i\bullet} - \bar{Y}_{j\bullet} \pm (`r tval`)(`r s`) \sqrt{\frac{2}{5}}
+    = \bar{Y}_{i\bullet} - \bar{Y}_{j\bullet} \pm `r tval*s*sqrt(2/5)`.
+$$
+
+To calculate the individual confidence intervals for $\tau_i - \tau_j$, we first calculate the means $\bar{Y}_i$ using the ``rowMeans`` function and then calculate the end points of each confidence interval using a for-loop. The following code performs the necessary calculations.
+```{r intervals}
+# Create matrix storing observations.
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+
+# Calculate row averages.
+rm <- rowMeans(y)
+
+# Initialize matrices of lower and upper bounds for confidence intervals.
+lbs <- matrix(data = 0, nrow = 4, ncol = 4)
+ubs <- matrix(data = 0, nrow = 4, ncol = 4)
+
+# Calculate confidence intervals for each (i,j)
+rad <- 2.0392755 # Radius calculated above.
+
+for (i in 1:3){
+  for (j in (i+1):4){
+    
+    # lower bound for (i,j) CI
+    lbs[i,j] <- rm[i] - rm[j] - rad
+    
+    # upper bound for (i,j) CI
+    ubs[i,j] <- rm[i] - rm[j] + rad
+    
+  } # end for j.
+} # end for i.
+```
+
+This code yields two matrices. One whose $(i,j)$th entry gives the lower bound for the desired confidence interval for $\tau_i - \tau_j$ if $i < j$, and with $(i,j)$th entry equal to $0$ if $i \ge j$. Similarly, the second matrix provides the corresponding upper bounds for the desired confidence intervals.
+This yields the following collection of confidence intervals for $\tau_i - \tau_j$ for $i < j$ with simultaneous confidence coefficient $0.95$:
+\begin{align*}
+  `r lbs[1,2]` < \tau_1 - \tau_2 < `r ubs[1,2]`, \\
+  `r lbs[1,3]` < \tau_1 - \tau_3 < `r ubs[1,3]`, \\
+  `r lbs[1,4]` < \tau_1 - \tau_4 < `r ubs[1,4]`, \\
+  `r lbs[2,3]` < \tau_2 - \tau_3 < `r ubs[2,3]`, \\
+  `r lbs[2,4]` < \tau_2 - \tau_4 < `r ubs[2,4]`, \\
+  `r lbs[3,4]` < \tau_3 - \tau_4 < `r ubs[3,4]`.
+\end{align*}
+
+Note that this suggests that we have significant evidence that $\tau_1 < \tau_2 < \tau_3 < \tau_4$.

@@ -1,0 +1,244 @@
+---
+title: "Multiple Regression in R"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(kableExtra)
+```
+
+
+Again we the following observations $Y_1, Y_2, \dots, Y_n$ following linear model $E(Y) = \beta_0 + \beta_1 x$: 
+
+| $x$ | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+|$y$ | 4.13 |  4.78 | 6.44 |  5.45 | 7.99 |  7.99 |  8.95 | 11.02 | 11.89 | 10.75 |
+
+In an earlier example, we fit the least squares model 
+$$
+  \hat y = 3.18 + 0.865 x
+$$
+```{r plotline}
+x <- 1:10
+y <-  c(4.13,  4.78,  6.44,  5.45,  7.99,  7.99,  8.95, 11.02, 11.89, 10.75)
+plot(x, y, xlim = c(0,10), ylim = c(0,12), col = "navy", pch = 19, cex = 1.5)
+abline(3.18, 0.865, col = "red", lwd = 2)
+```
+
+# Least Squares via Matrix Algebra
+
+We could also have fit the least-squares line by solving the linear system 
+$$
+  (\mathbf{X'} \mathbf{X}) \boldsymbol{\hat\beta} = \mathbf{X'} \mathbf{Y},
+$$
+where
+$$
+  \mathbf{Y} = \left[ \begin{array}{c}y_1 \\ y_2 \\ \vdots \\ y_n \end{array}\right], \hspace{0.25in}
+  \mathbf{X} = \left[ \begin{array}{cc} 1 & x_1 \\ 1 & x_2 \\ \vdots & \vdots \\ 1 & x_n \end{array}\right],
+  \hspace{0.25in}
+  \boldsymbol{\hat\beta} = \left[\begin{array}{c} \hat\beta_0 \\ \hat\beta_1 \end{array} \right].
+$$
+We can create the coefficient matrices $\mathbf{X'}\mathbf{Y}$ and $\mathbf{X' X}$ using the following code.
+```{r makeMatrices}
+# Store X as matrix.
+n <- length(x)
+X = cbind(rep(x = 1, times = n), x)
+
+# Form coefficient matrices.
+XX = t(X) %*% X
+XY = t(X) %*% y
+```
+Here, the function **t(X)** yields the transpose of the matrix $\mathbf{X}$ and the operator $\mathbf{\% * \%}$ is used to perform matrix-matrix multiplication.
+This gives the matrices:
+```{r printMatrix, echo=FALSE}
+print_mat <- function(mat) {
+  n <- nrow(mat)
+  c('\\begin{bmatrix}',
+    paste0(sapply(seq_len(n - 1),
+                  function(i) paste0(mat[i, ], collapse = ' & ')),
+           ' \\\\'),
+    paste0(mat[n, ], collapse = ' & '),
+    '\\end{bmatrix}')
+} 
+```
+
+```{r displayMatrices, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\mathbf{X' X} =", 
+             print_mat(as.matrix(XX)),  
+             "\\hspace{0.5in} \\mathbf{X' Y}=",
+             print_mat(as.matrix(XY)),
+             "$$"))
+```
+
+### Solving using Matrix Inversion
+
+There are several equivalent processes for solving the linear system $(\mathbf{X'} \mathbf{X}) \boldsymbol{\hat\beta} = \mathbf{X'} \mathbf{Y}$ and, thus, calculating the least squares estimators.
+For example, we could calculate the inverse $(\mathbf{X'} \mathbf{X})^{-1}$ and evaluate
+$$
+  \boldsymbol{\hat\beta} = (\mathbf{X'} \mathbf{X})^{-1} \mathbf{X'Y}.
+$$
+We can calculate the inverse $(\mathbf{X'} \mathbf{X})^{-1}$ using R function **solve** and calculate $\boldsymbol{\hat\beta}$ using the following code.
+```{r matInv}
+# Calculate inverse.
+invXX <- solve(XX)
+
+# Solve for hatbeta
+hBeta <- invXX %*% XY
+```
+
+```{r matInvSol, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\mathbf{(X' X)^{-1}} =", 
+             print_mat(as.matrix(invXX)),  
+             "\\hspace{0.5in} \\mathbf{\\boldsymbol{\\hat\\beta}}=",
+             print_mat(as.matrix(hBeta)),
+             "$$"))
+```
+Note that the entries of $\boldsymbol{\hat\beta}$ agree with the values of the $\hat\beta_0$ and $\hat\beta_1$ calculated earlier.
+
+### Solving via Gaussian Elimination
+
+We can also solve the system $(\mathbf{X'} \mathbf{X}) \boldsymbol{\hat\beta} = \mathbf{X'} \mathbf{Y}$ by reducing the augmented matrix 
+$$
+  \begin{bmatrix} \mathbf{X'} \mathbf{X} & \mathbf{X' Y} \end{bmatrix}
+$$
+to reduced row echelon form using Gaussian elimination. 
+The resulting matrix will have final column equal to $\boldsymbol{\hat\beta}$.
+The following code uses the R function **rref** (part of the **pracma** package) to perform the necessary elementary row operations.
+```{r GE}
+# Load pracma package.
+library(pracma)
+
+# Form augmented matrix.
+Ab <- cbind(XX, XY)
+
+# Reduce to RREF.
+rrefAB <- rref(Ab)
+```
+
+```{r rrefSol, echo = FALSE, results = 'asis'}
+writeLines(c("$$", 
+             print_mat(Ab),  
+             "\\;\\;\\sim\\;\\;",
+             print_mat(rrefAB),
+             "$$"))
+```
+Notice that the final column of the reduced matrix agrees with the value of $\boldsymbol{\hat\beta}$ calculated the using the **inv** function and the values of $\hat\beta_0$ and $\hat\beta_1$ calculated directly using the least-squares equations.
+
+### Using the Solve Function
+
+We can also use the **solve** function to solve the linear system  for the least squares estimator  using Gaussian elimination (without explicitly forming the inverse $(\mathbf{X'X})^{-1}$.
+Indeed, the command **solve(A,b)** calls R's linear system solving routines (based on the LAPACK package https://www.netlib.org/lapack/) to solve the system $\mathbf{A x} = \mathbf{b}$.
+This syntax differs from our earlier use of **solve(XX)**: the command **solve(A)** yields the inverse of the matrix $\mathbf{A}$ when given a single matrix argument as input.
+The following code specializes the process to solving the least-squares system.
+```{r useSolve}
+hBetaS <- solve(XX, XY)
+```
+This yields 
+```{r matSolveSol, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\boldsymbol{\\hat\\beta}=",
+             print_mat(as.matrix(hBetaS)),
+             "$$"))
+```
+Note that this gives the same least-squares estimators as before (as should be expected).
+
+# A Nonlinear Example
+
+Suppose that the response variable $Y$  follows the model:
+$$
+  Y = \beta_0 + \beta_1 x + \beta_2 \sqrt{x} + \beta_3 e^{x} + \epsilon..
+$$
+We have the following observations:
+
+| $x$ | 0 | 1 | 2 | 3 | 4 | 
+|:---:|:---:|:---:|:---:|:---:|:---:|
+|$y$ | -1.28| 0.16 | -2.35 | -12.52 | -44.35 |
+
+```{r plotNonlinear, echo = FALSE}
+plot(x = 0:4, xlab = "x",
+     y = c(-1.28, 0.16, -2.35, -12.52, -44.35), ylab = "Y",
+     xlim = c(-1/4, 4 + 1/4), 
+     ylim = c(-50, 2), col = "navy", 
+     pch = 19, cex = 1.5)
+```
+
+We can calculate the least squares estimates $\hat\beta_0, \hat\beta_1, \hat\beta_2, \hat\beta_3$ by solving the linear system 
+$$
+  (\mathbf{X'X}) \boldsymbol{\hat\beta} = \mathbf{X'Y},
+$$
+where 
+$$
+  \mathbf{X} = 
+    \begin{bmatrix} 1 & x_1 & \sqrt{x_1} & e^{x_1} \\
+              1 & x_2 & \sqrt{x_2} & e^{x_2} \\
+              \vdots & \vdots & \vdots & \vdots \\
+              1 & x_n & \sqrt{x_n} & e^{x_n}
+    \end{bmatrix}, \hspace{0.25in}
+    \mathbf{Y} = \begin{bmatrix} y_1 \\ \vdots \\ y_n \end{bmatrix}, 
+    \hspace{0.25in}
+    \boldsymbol{\hat\beta} = \begin{bmatrix}\beta_0 \\ \beta_1 \\ \beta_2 \\ \beta_3 \end{bmatrix}.
+$$
+The following code creates $\mathbf{X}$ and $\mathbf{Y}$ for the given data.
+```{r nlData}
+# Load data.
+x2 <- 0:4
+y2 <- c(-1.28, 0.16, -2.35, -12.52, -44.35)
+n2 <- length(x2)
+# Create X.
+X2 <- cbind(rep(x = 1, times = n2), x2, sqrt(x2), exp(x2))
+```
+This gives following the matrix $\boldsymbol{X}$ of independent variable values.
+```{r nlX, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\mathbf{X}=",
+             print_mat(as.matrix(X2)),
+             ".$$"))
+```
+
+After forming $\mathbf{X}$, we can create the coefficient matrices $\mathbf{X'X}$ and $\mathbf{X'Y}$ for the least squares linear system using the following code.
+```{r nlCoeffs}
+XX2 <- t(X2) %*% X2
+XY2 <- t(X2) %*% y2
+```
+```{r displayNLXX, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\mathbf{X' X} =", 
+             print_mat(as.matrix(XX2)),  
+             "$$"))
+```
+```{r displayNLXY, echo = FALSE, results = 'asis'}
+writeLines(c("$$\\mathbf{X' Y}=",
+             print_mat(as.matrix(XY2)),
+             "$$"))
+```
+We're ready to calculate $\boldsymbol{\hat\beta}$ using the **solve** function.
+```{r solveNL}
+hBetaN <- solve(XX2, XY2)
+```
+```{r displayNLB, echo = FALSE, results = 'asis'}
+writeLines(c("$$ \\boldsymbol{\\hat\\beta}=",
+             print_mat(as.matrix(hBetaN)),
+             "$$"))
+```
+
+We can plot the curve corresponding to the least squares estimators using the following code.
+```{r plotNLCurve}
+# Plot observations.
+plot(x = 0:4, xlab = "x",
+     y = c(-1.28, 0.16, -2.35, -12.52, -44.35), ylab = "Y",
+     xlim = c(-1/4, 4 + 1/4), 
+     ylim = c(-50, 2), col = "navy", 
+     pch = 19, cex = 1.5)
+
+# Generate sequence of independent variables.
+xs <- seq(from = 0, to = 4.25, by = 0.25)
+
+# Predict points on curve using least-squares model
+ys <- hBetaN[1] + hBetaN[2]*xs + hBetaN[3]*sqrt(xs) + hBetaN[4]*exp(xs)
+
+# Plot least-squares curve
+lines(xs, ys, col = "red", lwd = 2)
+```

@@ -1,0 +1,104 @@
+---
+title: "Confidence Intervals in Randomized Block Designs using R"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Consider the following data corresponding to a randomized block design with $k = 4$ treatments and $b = 5$ blocks.
+
+```{r data, echo = FALSE}
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+rownames(y) <- c("Treatment 1", "Treatment 2", "Treatment 3", "Treatment 4")
+colnames(y) <- c("Block 1", "Block 2", "Block 3", "Block 4", "Block 5")
+knitr::kable(y, align=c(rep('c',times=5)))
+```
+
+We calculated the following the sums of squares in an earlier example:
+```{r SS, echo = FALSE}
+# Create matrix storing observations.
+b <- 5
+k <- 4
+n <- b*k
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+# Calculate CM and total sum of squares.
+cm <- sum(y)^2/n
+tss <- sum(y^2) - cm
+
+# Calculate vectors of row and col sums.
+ydotj <- colSums(y)
+yidot <- rowSums(y)
+
+# Calculate SSB, SST, SSE.
+ssb <- sum(ydotj^2)/k - cm
+sst <- sum(yidot^2)/b - cm
+sse <- tss - ssb - sst
+
+# MSE/MST/MSB
+msb <- ssb/(b-1)
+mst <- sst/(k-1)
+mse <- sse/(n - b - k + 1)
+```
+
+\begin{align*}
+  \text{CM} &= `r cm` &&&
+  \text{Total SS} &= `r tss` \\ 
+  \text{SSB} &= `r ssb` &&& \text{MSB} &= `r msb` \\
+  \text{SST} &= `r sst` &&& \text{MST} &= `r mst` \\
+  \text{SSE} &= `r sse` &&& \text{MSE} &= `r mse`
+\end{align*}
+
+# Comparing treatments
+
+Recall that a $100(1-\alpha)\%$-confidence for the difference between $\tau_1$ and $\tau_2$ is given by 
+$$
+  \bar{Y}_{1\bullet} - \bar{Y}_{2\bullet} \pm t_{\alpha/2} S \sqrt{\frac{2}{b}},
+$$
+where $t_{\alpha/2}$ is calculated using $n - b - k + 1 = 12$ degrees of freedom and $S = \sqrt{MSE}$ gives an unbiased estimate of $\sigma^2$.
+
+We can calculate the observed estimate of $\tau_1 - \tau_2$ by using the ``rowMeans`` function to calculate $\bar{Y}_{i\bullet}$ for each $i = 1,2,3,4$.
+```{r rowMeans}
+# Create matrix storing observations.
+b <- 5
+k <- 4
+n <- b*k
+y <- matrix(data = c(-3.0, -2.3, -0.3, 6.2,
+                     -5.0, -2.3, 1.6, 4.6, 
+                     -5.5, -1.8, 1.5, 5.5,
+                     -6.4, -2.8, -1.6, 5.5,
+                     -5.5, -1.6, 0.3, 3.7),
+            nrow = 4, ncol = 5)
+
+# Calculate row averages.
+rm <- rowMeans(y)
+```
+The first two entries of the output vector ``rm`` store $\bar{Y}_{1\bullet}$ and $\bar{Y}_{2\bullet}$ respectively. The following code yields the desired confidence interval for $\alpha = 0.05$.
+```{r tau-ci}
+alpha <- 0.10
+rad <- qt(p = alpha/2, df = n - b - k + 1, lower.tail = FALSE)*sqrt(mse)*sqrt(2/b)
+lb <- rm[1] - rm[2] - rad
+ub <- rm[1] - rm[2] + rad
+```
+
+This gives the $90\%$ confidence interval for $\tau$
+$$
+  `r rm[1]` + `r - rm[2]` \pm 
+  `r round(qt(p = alpha/2, df = n - b - k + 1, lower.tail = FALSE), digits = 4)` (`r sqrt(mse)`) \sqrt{\frac{2}{5}}
+$$
+or, equivalently
+$$
+  `r lb` < \tau_1 - \tau_2 < `r ub`.
+$$
+
+Note that we can conclude that there is a significant evidence that $\tau_1$ and $\tau_2$ differ (at the $\alpha = 0.05$ level) since $0$ is outside this confidence interval.

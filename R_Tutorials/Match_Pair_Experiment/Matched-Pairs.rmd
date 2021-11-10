@@ -1,0 +1,79 @@
+---
+title: "The Matched Pairs Experiment"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Consider the following data, which corresponds to pairs of observations of two normally distributed random variables $(x_{i}, y_{i})$, $i = 1,2,\dots, 16$.
+```{r makeTable, echo=FALSE}
+x <-  c(-0.75, -0.20,  0.18, -1.49,  0.73,  1.57, -0.78,  0.92,  0.23, -2.39,  0.37,  0.94, -0.03, 1.24, -0.67,  0.27)
+y <- c(-0.01,  2.13,  0.54,  3.29, -4.32,  2.50,  1.37,  2.94,  0.89,  0.02,  0.18,  1.71,  0.25,  1.86, -0.40,  2.26)
+dta <- data.frame(x,y)
+colnames(dta) <- c("Group 1 (X)", "Group 2 (Y)")
+
+knitr::kable(dta, align=c(rep('c',times=2)))
+```
+
+```{r latexForSlides, echo=FALSE}
+library(xtable)
+tmp <- cbind(1:8, x[1:8], y[1:8], (x-y)[1:8], 9:16, x[9:16], y[9:16], (x-y)[9:16])
+colnames(tmp) <- c("i", "X", "Y", "X - Y", "i", "X", "Y", "X - Y")
+xtmp <- xtable(tmp)
+digits(xtmp) <- c(0,0, 2, 2, 2, 0, 2, 2, 2)
+# print(xtmp, include.rownames = FALSE, booktabs = TRUE) # row names suppressed
+```
+
+Let's test the null hypothesis $H_0: \mu_1 = \mu_2$ against the alternative hypothesis $H_a: \mu_1 \neq \mu_2$.
+Under the assumption that the differences $D_i = X_i - Y_i$ are normally distributed, we can use the test statistic
+$$
+  t = \frac{\bar{D}}{S_D/\sqrt{n}},
+$$
+which has $t$-distribution with $n-1$ degrees of freedom.
+
+We can calculate the observed value of $t$ for the observed data using the following code.
+```{r calcT}
+# Store x and y as vectors.
+x <-  c(-0.75, -0.20,  0.18, -1.49,  0.73,  1.57, -0.78, 0.92,
+        0.23, -2.39,  0.37,  0.94, -0.03, 1.24, -0.67,  0.27)
+y <- c(-0.01,  2.13,  0.54,  3.29, -4.32,  2.50,  1.37,  2.94,
+       0.89,  0.02,  0.18,  1.71,  0.25,  1.86, -0.40,  2.26)
+n <- length(x)
+
+# Calculate mean difference.
+Dbar <- mean(x - y)
+
+# Calculate sample standard deviation of differences.
+SD <- sd(x - y)
+
+# Calculate value of t.
+tval <- Dbar/(SD/sqrt(n))
+```
+This yields 
+$$
+  \bar{D} = `r Dbar`, \hspace{0.25in}
+  S_D^2 = `r SD^2`, \hspace{0.25in}
+  S_D = `r SD`,
+$$
+which gives the observed value of the test statistic
+$$
+  t = `r tval`.
+$$
+For a two-sided $t$-test with $\alpha = 0.05$, we use the rejection region 
+$$
+  |t| > t_{0.025} = `r qt(p = 0.025, df = n-1, lower.tail = FALSE)`.
+$$
+Since the observed value of $t$ is outside the rejection region, we do not have sufficient evidence to reject $H_0$.
+
+# Using the ``t.test`` function
+
+Alternately, we could have performed this hypothesis test using the ``t.test`` function and the argument ``paired = TRUE``:
+```{r use-t.test}
+t.test(x,y, paired = TRUE, alternative = "two.sided")
+```
+
+This code returns a summary of the hypothesis test. In particular, it provides the observed value of the test statistic $t$ (which agrees with that calculated above), as well as a $95\%$ confidence interval for $\mu_1 - \mu_2$ based on the paired observations. Since the $p$-value ($0.08184$) is greater than $0.05$, we cannot reject $H_0$.
