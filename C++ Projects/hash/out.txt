@@ -1,0 +1,6 @@
+Commands:
+	print
+	lookup <key>
+	quit
+
+Enter a command:
